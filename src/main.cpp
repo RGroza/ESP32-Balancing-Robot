@@ -19,16 +19,22 @@ public:
     motor_.controller = MotionControlType::angle;
 
     motor_.PID_velocity.P = 0.2;
-    motor_.PID_velocity.I = 20;
-    motor_.voltage_limit = 10;
+    motor_.PID_velocity.I = 20.0;
+    motor_.voltage_limit = 4.0;
     motor_.LPF_velocity.Tf = 0.02;
-    motor_.P_angle.P = 20;
-    motor_.velocity_limit = 4;
+    motor_.P_angle.P = 10.0;
+    motor_.velocity_limit = 4.0;
 
     motor_.init();
     motor_.initFOC();
 
-    Serial.printf("%s ready\n", name_);
+    Serial.printf("%s: zero_elec=%.3f dir=%s\n", name_, motor_.zero_electric_angle,
+                  motor_.sensor_direction == Direction::CW ? "CW" : "CCW");
+  }
+
+  void run() {
+    motor_.loopFOC();
+    motor_.move();
   }
 
   void commandMotor(Commander commander, char *cmd) { commander.motion(&motor_, cmd); }
@@ -51,12 +57,13 @@ private:
   const char *name_;
 };
 
-MotorFOC motor_left(12, 13, 14, 32, 2, "Left");
-MotorFOC motor_right(25, 26, 27, 33, 4, "Right");
+MotorFOC motor_left(27, 14, 12, 13, 2, "Left");
+MotorFOC motor_right(32, 33, 25, 26, 4, "Right");
 
 Commander commander = Commander(Serial);
 
 unsigned long last_print = 0;
+bool input_in_progress = false;
 
 void onTarget(char *cmd) {
   motor_left.commandMotor(commander, cmd);
@@ -70,23 +77,15 @@ void setup() {
   motor_left.setup();
   motor_right.setup();
 
-  commander.add('T', onTarget, "motion control");
+  commander.add('/', onTarget, "motion control");
 }
 
 void loop() {
-  // motor.loopFOC();
-  // motor.move();
-  // command.run();
+  motor_left.run();
+  motor_right.run();
 
-  motor_left.updateEncoder();
-  motor_right.updateEncoder();
+  // motor_left.updateEncoder();
+  // motor_right.updateEncoder();
 
-  unsigned long now = millis();
-  if (now - last_print >= 500) {
-    last_print = now;
-    Serial.printf("%s: %.2f\t%s: %.2f\n", motor_left.getName(), motor_left.getAngle(), motor_right.getName(),
-                  motor_right.getAngle());
-  }
-
-  delay(50);
+  commander.run();
 }
